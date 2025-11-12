@@ -1,6 +1,6 @@
 # Conversation History Plan
 
-1. **Persist Conversations**
+1. ~~**Persist Conversations**~~ ✅
    - Add a lightweight storage layer (e.g., `nanochat/storage.py`) that wraps `sqlite3` with tables for `conversations(id, title, created_at, updated_at)` and `messages(id, conversation_id, role, content, created_at)`.
    - Initialize the database during FastAPI startup inside `lifespan` (`scripts/chat_web.py:223`) and attach the store to `app.state` for reuse in endpoints.
    - Create helper methods to create a conversation, append messages, list summaries, fetch full threads, rename, and soft-delete so later UX enhancements are easy.

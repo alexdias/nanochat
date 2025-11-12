@@ -48,6 +48,7 @@ from contextlib import nullcontext
 from nanochat.common import compute_init, autodetect_device_type
 from nanochat.checkpoint_manager import load_model
 from nanochat.engine import Engine
+from nanochat.storage import ConversationNotFoundError, ConversationStore
 
 # Abuse prevention limits
 MAX_MESSAGES_PER_REQUEST = 500
@@ -156,6 +157,7 @@ class ChatRequest(BaseModel):
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
     top_k: Optional[int] = None
+    conversation_id: Optional[int] = None
 
 def validate_chat_request(request: ChatRequest):
     """Validate chat request to prevent abuse."""
@@ -220,14 +222,30 @@ def validate_chat_request(request: ChatRequest):
                 detail=f"max_tokens must be between {MIN_MAX_TOKENS} and {MAX_MAX_TOKENS}"
             )
 
+DEFAULT_DB_PATH = os.path.abspath(
+    os.environ.get(
+        "NANOCHAT_DB_PATH",
+        os.path.join(os.path.dirname(__file__), "..", "nanochat.db"),
+    )
+)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load models on all GPUs on startup."""
+    """Load models on all GPUs on startup and prepare persistence."""
+
     print("Loading nanochat models across GPUs...")
-    app.state.worker_pool = WorkerPool(num_gpus=args.num_gpus)
-    await app.state.worker_pool.initialize(args.source, model_tag=args.model_tag, step=args.step)
-    print(f"Server ready at http://localhost:{args.port}")
-    yield
+    store = ConversationStore(DEFAULT_DB_PATH)
+    worker_pool = WorkerPool(num_gpus=args.num_gpus)
+    app.state.conversation_store = store
+    app.state.worker_pool = worker_pool
+    try:
+        await worker_pool.initialize(args.source, model_tag=args.model_tag, step=args.step)
+        print(f"Server ready at http://localhost:{args.port}")
+        yield
+    finally:
+        store.close()
+
 
 app = FastAPI(lifespan=lifespan)
 
@@ -308,8 +326,6 @@ async def generate_stream(
                     yield f"data: {json.dumps({'token': new_text, 'gpu': worker.gpu_id}, ensure_ascii=False)}\n\n"
                     last_clean_text = current_text
 
-    yield f"data: {json.dumps({'done': True})}\n\n"
-
 @app.post("/chat/completions")
 async def chat_completions(request: ChatRequest):
     """Chat completion endpoint (streaming only) - uses worker pool for multi-GPU."""
@@ -317,15 +333,58 @@ async def chat_completions(request: ChatRequest):
     # Basic validation to prevent abuse
     validate_chat_request(request)
 
+    store: ConversationStore = app.state.conversation_store
+
+    conversation_id = request.conversation_id
+    if conversation_id is None:
+        conversation_id = store.create_conversation()
+        stored_history: List[tuple[str, str]] = []
+    else:
+        try:
+            stored_messages = store.get_conversation(conversation_id)
+        except ConversationNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Conversation not found") from exc
+        stored_history = [(msg.role, msg.content) for msg in stored_messages]
+
+    stored_length = sum(len(content) for _, content in stored_history)
+
+    request_history = [(message.role, message.content) for message in request.messages]
+    if stored_history and len(request_history) >= len(stored_history):
+        if request_history[: len(stored_history)] != stored_history:
+            raise HTTPException(status_code=409, detail="Conversation history mismatch")
+        new_messages = request.messages[len(stored_history) :]
+    else:
+        new_messages = request.messages
+    if not new_messages:
+        raise HTTPException(status_code=400, detail="No new messages to append")
+    if any(message.role != "user" for message in new_messages):
+        raise HTTPException(status_code=400, detail="Only user messages can be appended")
+
+    new_length = sum(len(message.content) for message in new_messages)
+    if stored_length + new_length > MAX_TOTAL_CONVERSATION_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Total conversation is too long. Maximum {MAX_TOTAL_CONVERSATION_LENGTH} characters allowed",
+        )
+
+    for message in new_messages:
+        store.append_message(conversation_id, message.role, message.content)
+
+    all_messages: List[tuple[str, str]] = stored_history + [
+        (message.role, message.content) for message in new_messages
+    ]
+
     # Log incoming conversation to console
-    logger.info("="*20)
-    for i, message in enumerate(request.messages):
-        logger.info(f"[{message.role.upper()}]: {message.content}")
-    logger.info("-"*20)
+    logger.info("=" * 20 + f" CONV {conversation_id}")
+    for role, content in all_messages:
+        logger.info(f"[{role.upper()}]: {content}")
+    logger.info("-" * 20)
 
     # Acquire a worker from the pool (will wait if all are busy)
     worker_pool = app.state.worker_pool
     worker = await worker_pool.acquire_worker()
+
+    worker_released = False
 
     try:
         # Build conversation tokens
@@ -336,21 +395,24 @@ async def chat_completions(request: ChatRequest):
         assistant_end = worker.tokenizer.encode_special("<|assistant_end|>")
 
         conversation_tokens = [bos]
-        for message in request.messages:
-            if message.role == "user":
+        for role, content in all_messages:
+            if role == "user":
                 conversation_tokens.append(user_start)
-                conversation_tokens.extend(worker.tokenizer.encode(message.content))
+                conversation_tokens.extend(worker.tokenizer.encode(content))
                 conversation_tokens.append(user_end)
-            elif message.role == "assistant":
+            elif role == "assistant":
                 conversation_tokens.append(assistant_start)
-                conversation_tokens.extend(worker.tokenizer.encode(message.content))
+                conversation_tokens.extend(worker.tokenizer.encode(content))
                 conversation_tokens.append(assistant_end)
 
         conversation_tokens.append(assistant_start)
 
         # Streaming response with worker release after completion
-        response_tokens = []
+        response_tokens: List[str] = []
+        full_response = ""
+
         async def stream_and_release():
+            nonlocal full_response, worker_released
             try:
                 async for chunk in generate_stream(
                     worker,
@@ -364,13 +426,22 @@ async def chat_completions(request: ChatRequest):
                     if "token" in chunk_data:
                         response_tokens.append(chunk_data["token"])
                     yield chunk
+            except Exception:
+                raise
+            else:
+                full_response = "".join(response_tokens)
+                if full_response:
+                    store.append_message(conversation_id, "assistant", full_response)
+                yield f"data: {json.dumps({'done': True, 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
             finally:
                 # Log the assistant response to console
-                full_response = "".join(response_tokens)
-                logger.info(f"[ASSISTANT] (GPU {worker.gpu_id}): {full_response}")
-                logger.info("="*20)
+                logger.info(
+                    f"[ASSISTANT] (GPU {worker.gpu_id}) CONV {conversation_id}: {full_response}"
+                )
+                logger.info("=" * 20)
                 # Release worker back to pool after streaming is done
                 await worker_pool.release_worker(worker)
+                worker_released = True
 
         return StreamingResponse(
             stream_and_release(),
@@ -378,7 +449,8 @@ async def chat_completions(request: ChatRequest):
         )
     except Exception as e:
         # Make sure to release worker even on error
-        await worker_pool.release_worker(worker)
+        if not worker_released:
+            await worker_pool.release_worker(worker)
         raise e
 
 @app.get("/health")
