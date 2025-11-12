@@ -48,6 +48,7 @@ from contextlib import nullcontext
 from nanochat.common import compute_init, autodetect_device_type
 from nanochat.checkpoint_manager import load_model
 from nanochat.engine import Engine
+from nanochat.storage import ConversationStore
 
 # Abuse prevention limits
 MAX_MESSAGES_PER_REQUEST = 500
@@ -220,14 +221,30 @@ def validate_chat_request(request: ChatRequest):
                 detail=f"max_tokens must be between {MIN_MAX_TOKENS} and {MAX_MAX_TOKENS}"
             )
 
+DEFAULT_DB_PATH = os.path.abspath(
+    os.environ.get(
+        "NANOCHAT_DB_PATH",
+        os.path.join(os.path.dirname(__file__), "..", "nanochat.db"),
+    )
+)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load models on all GPUs on startup."""
+    """Load models on all GPUs on startup and prepare persistence."""
+
     print("Loading nanochat models across GPUs...")
-    app.state.worker_pool = WorkerPool(num_gpus=args.num_gpus)
-    await app.state.worker_pool.initialize(args.source, model_tag=args.model_tag, step=args.step)
-    print(f"Server ready at http://localhost:{args.port}")
-    yield
+    store = ConversationStore(DEFAULT_DB_PATH)
+    worker_pool = WorkerPool(num_gpus=args.num_gpus)
+    app.state.conversation_store = store
+    app.state.worker_pool = worker_pool
+    try:
+        await worker_pool.initialize(args.source, model_tag=args.model_tag, step=args.step)
+        print(f"Server ready at http://localhost:{args.port}")
+        yield
+    finally:
+        store.close()
+
 
 app = FastAPI(lifespan=lifespan)
 
