@@ -190,6 +190,41 @@ class ConversationStore:
             for row in rows
         ]
 
+    def get_conversation_metadata(self, conversation_id: int) -> ConversationSummary:
+        """Return a single conversation summary including its last message preview."""
+
+        cursor = self._conn.execute(
+            """
+            SELECT
+                c.id,
+                c.title,
+                c.created_at,
+                c.updated_at,
+                last_message.content AS last_message_preview
+            FROM conversations AS c
+            LEFT JOIN (
+                SELECT m.content
+                FROM messages AS m
+                WHERE m.conversation_id = ?
+                ORDER BY m.created_at DESC, m.id DESC
+                LIMIT 1
+            ) AS last_message ON 1=1
+            WHERE c.id = ?
+            """,
+            (conversation_id, conversation_id),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            raise ConversationNotFoundError(f"Conversation {conversation_id} does not exist")
+
+        return ConversationSummary(
+            id=row["id"],
+            title=row["title"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+            last_message_preview=row["last_message_preview"],
+        )
+
     def get_conversation(self, conversation_id: int) -> List[StoredMessage]:
         """Fetch all messages for a conversation ordered by creation."""
 
@@ -283,4 +318,3 @@ class ConversationStore:
             (conversation_id,),
         )
         return cursor.fetchone() is not None
-
