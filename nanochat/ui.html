@@ -474,6 +474,8 @@
         const sidebarBackdrop = document.getElementById('sidebarBackdrop');
 
         let messages = [];
+        let conversationId = null;
+        let conversations = [];
         let isGenerating = false;
         let currentTemperature = 0.8;
         let currentTopK = 50;
@@ -492,6 +494,123 @@
                 document.body.classList.add('sidebar-open');
             } else {
                 document.body.classList.remove('sidebar-open');
+            }
+        }
+
+        function getConversationTitle(conversation) {
+            if (conversation.title && conversation.title.trim().length > 0) {
+                return conversation.title.trim();
+            }
+            if (conversation.last_message_preview && conversation.last_message_preview.trim().length > 0) {
+                const preview = conversation.last_message_preview.trim();
+                return preview.length > 40 ? `${preview.slice(0, 40)}…` : preview;
+            }
+            return `Conversation ${conversation.id}`;
+        }
+
+        function renderConversationList() {
+            conversationList.innerHTML = '';
+
+            if (!conversations.length) {
+                conversationList.innerHTML = '<div class="conversation-empty">Start chatting to see your conversation history.</div>';
+                return;
+            }
+
+            conversations.forEach((conversation) => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'conversation-item';
+                if (conversation.id === conversationId) {
+                    item.classList.add('active');
+                }
+
+                const title = document.createElement('p');
+                title.className = 'conversation-title';
+                title.textContent = getConversationTitle(conversation);
+                item.appendChild(title);
+
+                const preview = document.createElement('p');
+                preview.className = 'conversation-preview';
+                if (conversation.last_message_preview && conversation.last_message_preview.trim()) {
+                    const text = conversation.last_message_preview.trim();
+                    preview.textContent = text.length > 80 ? `${text.slice(0, 80)}…` : text;
+                } else {
+                    preview.textContent = 'No messages yet';
+                }
+                item.appendChild(preview);
+
+                item.addEventListener('click', () => {
+                    if (isGenerating) return;
+                    if (conversation.id === conversationId) {
+                        toggleSidebar(false);
+                        return;
+                    }
+                    loadConversation(conversation.id);
+                });
+
+                conversationList.appendChild(item);
+            });
+        }
+
+        async function refreshConversationList() {
+            try {
+                const response = await fetch(`${API_URL}/conversations`);
+                if (!response.ok) {
+                    throw new Error(`Failed to load conversations (${response.status})`);
+                }
+                conversations = await response.json();
+                renderConversationList();
+            } catch (error) {
+                console.error('Failed to load conversations:', error);
+                if (!conversations.length) {
+                    conversationList.innerHTML = '<div class="error-message">Unable to load conversations.</div>';
+                }
+            }
+        }
+
+        async function loadConversation(conversationIdToLoad) {
+            if (isGenerating) {
+                return;
+            }
+
+            const previousConversationId = conversationId;
+            conversationId = conversationIdToLoad;
+            renderConversationList();
+            chatWrapper.innerHTML = '<div class="conversation-empty">Loading conversation...</div>';
+
+            try {
+                const response = await fetch(`${API_URL}/conversations/${conversationIdToLoad}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to load conversation (${response.status})`);
+                }
+                const conversation = await response.json();
+                conversationId = conversation.id;
+                messages = conversation.messages.map((message) => ({
+                    role: message.role,
+                    content: message.content
+                }));
+
+                chatWrapper.innerHTML = '';
+                if (messages.length === 0) {
+                    chatWrapper.innerHTML = '<div class="conversation-empty">No messages yet. Start chatting!</div>';
+                } else {
+                    messages.forEach((message, index) => {
+                        addMessage(message.role, message.content, index);
+                    });
+                }
+
+                chatInput.value = '';
+                chatInput.style.height = 'auto';
+                sendButton.disabled = false;
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+                chatInput.focus();
+                toggleSidebar(false);
+            } catch (error) {
+                console.error('Failed to load conversation:', error);
+                chatWrapper.innerHTML = '<div class="error-message">Failed to load conversation.</div>';
+                conversationId = previousConversationId;
+            } finally {
+                renderConversationList();
             }
         }
 
@@ -519,6 +638,7 @@
 
         function newConversation() {
             messages = [];
+            conversationId = null;
             chatWrapper.innerHTML = '';
             chatInput.value = '';
             chatInput.style.height = 'auto';
@@ -526,6 +646,7 @@
             isGenerating = false;
             chatInput.focus();
             toggleSidebar(false);
+            renderConversationList();
         }
 
         function addMessage(role, content, messageIndex = null) {
@@ -592,17 +713,23 @@
             assistantContent.innerHTML = '<span class="typing-indicator"></span>';
 
             try {
+                const payload = {
+                    messages: messages,
+                    temperature: currentTemperature,
+                    top_k: currentTopK,
+                    max_tokens: 512
+                };
+
+                if (conversationId !== null) {
+                    payload.conversation_id = conversationId;
+                }
+
                 const response = await fetch(`${API_URL}/chat/completions`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        messages: messages,
-                        temperature: currentTemperature,
-                        top_k: currentTopK,
-                        max_tokens: 512
-                    }),
+                    body: JSON.stringify(payload),
                 });
 
                 if (!response.ok) {
@@ -629,6 +756,8 @@
                                     fullResponse += data.token;
                                     assistantContent.textContent = fullResponse;
                                     chatContainer.scrollTop = chatContainer.scrollHeight;
+                                } else if (data.done && typeof data.conversation_id !== 'undefined') {
+                                    conversationId = data.conversation_id;
                                 }
                             } catch (e) {
                             }
@@ -653,6 +782,7 @@
             } finally {
                 isGenerating = false;
                 sendButton.disabled = !chatInput.value.trim();
+                await refreshConversationList();
             }
         }
 
@@ -744,6 +874,8 @@
 
         sendButton.disabled = false;
         chatInput.focus();
+
+        refreshConversationList();
 
         fetch(`${API_URL}/health`)
             .then(response => response.json())

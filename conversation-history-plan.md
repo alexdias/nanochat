@@ -5,7 +5,7 @@
    - Initialize the database during FastAPI startup inside `lifespan` (`scripts/chat_web.py:223`) and attach the store to `app.state` for reuse in endpoints.
    - Create helper methods to create a conversation, append messages, list summaries, fetch full threads, rename, and soft-delete so later UX enhancements are easy.
 
-2. **Extend Existing Chat API**
+2. ~~**Extend Existing Chat API**~~ ✅
    - Update `ChatRequest` in `scripts/chat_web.py:139` to accept an optional `conversation_id`.
    - When `/chat/completions` (`scripts/chat_web.py:313`) receives a request: if `conversation_id` is missing, create a new conversation before token generation; otherwise load history, append incoming user message, and ensure the message log passed to the model matches what’s stored.
    - After streaming ends, persist the assistant reply and emit the active `conversation_id` (and maybe a refreshed `title`) in the final SSE chunk so the UI can keep track without restarting the stream.
@@ -24,10 +24,10 @@
    - Adjust the CSS to support the two-column layout and provide visual feedback for the selected conversation, along with responsive behavior for narrow screens (sidebar collapses into a drawer/button).
 
 5. **Front-End State & Networking**
-   - On load, fetch `/conversations` and render the list; clicking an item fetches `/conversations/{id}`, populates `messages`, and re-renders the thread.
-   - Track `activeConversationId` in the JS block starting at `nanochat/ui.html:275`; include it whenever calling `/chat/completions`.
-   - When the user starts a brand-new chat, call a small helper endpoint (or rely on the SSE “new conversation” signal) to acquire the new `conversation_id`, reset the message pane, and focus the input.
-   - After each assistant response, refresh the sidebar entry (last message preview + timestamp) so the history keeps itself up to date.
+   - ~~On load, fetch `/conversations` and render the list; clicking an item fetches `/conversations/{id}`, populates `messages`, and re-renders the thread.~~ ✅
+   - ~~Track `activeConversationId` in the JS block starting at `nanochat/ui.html:275`; include it whenever calling `/chat/completions`.~~ ✅
+   - ~~When the user starts a brand-new chat, call a small helper endpoint (or rely on the SSE “new conversation” signal) to acquire the new `conversation_id`, reset the message pane, and focus the input.~~ ✅
+   - ~~After each assistant response, refresh the sidebar entry (last message preview + timestamp) so the history keeps itself up to date.~~ ✅
 
 6. **Validation & QA**
    - Add simple unit tests for the storage layer (e.g., using `pytest` to create an in-memory DB) that cover creating, listing, and resuming conversations.
