@@ -38,7 +38,7 @@ import asyncio
 import logging
 import random
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse
 from pydantic import BaseModel
@@ -48,7 +48,7 @@ from contextlib import nullcontext
 from nanochat.common import compute_init, autodetect_device_type
 from nanochat.checkpoint_manager import load_model
 from nanochat.engine import Engine
-from nanochat.storage import ConversationNotFoundError, ConversationStore
+from nanochat.storage import ConversationStore, ConversationNotFoundError
 
 # Abuse prevention limits
 MAX_MESSAGES_PER_REQUEST = 500
@@ -159,6 +159,30 @@ class ChatRequest(BaseModel):
     top_k: Optional[int] = None
     conversation_id: Optional[int] = None
 
+class ConversationSummaryModel(BaseModel):
+    id: int
+    title: Optional[str]
+    created_at: str
+    updated_at: str
+    last_message_preview: Optional[str]
+
+class ConversationMessageModel(BaseModel):
+    id: int
+    role: str
+    content: str
+    created_at: str
+
+class ConversationDetailModel(BaseModel):
+    id: int
+    title: Optional[str]
+    created_at: str
+    updated_at: str
+    last_message_preview: Optional[str]
+    messages: List[ConversationMessageModel]
+
+class ConversationRenameRequest(BaseModel):
+    title: Optional[str] = None
+
 def validate_chat_request(request: ChatRequest):
     """Validate chat request to prevent abuse."""
     # Check number of messages
@@ -257,6 +281,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def _get_conversation_store() -> ConversationStore:
+    store = getattr(app.state, "conversation_store", None)
+    if store is None:
+        raise HTTPException(status_code=503, detail="Conversation store not initialized")
+    return store
+
 @app.get("/")
 async def root():
     """Serve the chat UI."""
@@ -276,6 +306,83 @@ async def logo():
     """Serve the NanoChat logo for favicon and header."""
     logo_path = os.path.join("nanochat", "logo.svg")
     return FileResponse(logo_path, media_type="image/svg+xml")
+
+@app.get("/conversations", response_model=List[ConversationSummaryModel])
+async def list_conversations(limit: int = 50):
+    """List recent conversations ordered by last update."""
+
+    store = _get_conversation_store()
+    safe_limit = max(1, min(limit, 200))
+    summaries = store.list_conversations(limit=safe_limit)
+    return [
+        ConversationSummaryModel(
+            id=summary.id,
+            title=summary.title,
+            created_at=summary.created_at,
+            updated_at=summary.updated_at,
+            last_message_preview=summary.last_message_preview,
+        )
+        for summary in summaries
+    ]
+
+@app.get("/conversations/{conversation_id}", response_model=ConversationDetailModel)
+async def get_conversation(conversation_id: int):
+    """Return metadata plus ordered messages for a single conversation."""
+
+    store = _get_conversation_store()
+    try:
+        summary = store.get_conversation_metadata(conversation_id)
+        messages = store.get_conversation(conversation_id)
+    except ConversationNotFoundError:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    return ConversationDetailModel(
+        id=summary.id,
+        title=summary.title,
+        created_at=summary.created_at,
+        updated_at=summary.updated_at,
+        last_message_preview=summary.last_message_preview,
+        messages=[
+            ConversationMessageModel(
+                id=message.id,
+                role=message.role,
+                content=message.content,
+                created_at=message.created_at,
+            )
+            for message in messages
+        ],
+    )
+
+@app.patch("/conversations/{conversation_id}", response_model=ConversationSummaryModel)
+async def rename_conversation(conversation_id: int, payload: ConversationRenameRequest):
+    """Rename a conversation."""
+
+    store = _get_conversation_store()
+    try:
+        store.rename_conversation(conversation_id, payload.title)
+        summary = store.get_conversation_metadata(conversation_id)
+    except ConversationNotFoundError:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    return ConversationSummaryModel(
+        id=summary.id,
+        title=summary.title,
+        created_at=summary.created_at,
+        updated_at=summary.updated_at,
+        last_message_preview=summary.last_message_preview,
+    )
+
+@app.delete("/conversations/{conversation_id}", status_code=204)
+async def delete_conversation(conversation_id: int):
+    """Soft delete a conversation."""
+
+    store = _get_conversation_store()
+    try:
+        store.soft_delete_conversation(conversation_id)
+    except ConversationNotFoundError:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    return Response(status_code=204)
 
 async def generate_stream(
     worker: Worker,

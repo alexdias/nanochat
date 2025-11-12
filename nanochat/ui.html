@@ -16,17 +16,157 @@
 
         body {
             font-family: ui-sans-serif, -apple-system, system-ui, "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol";
-            background-color: #ffffff;
+            background-color: #f3f4f6;
             color: #111827;
             min-height: 100dvh;
             margin: 0;
-            display: flex;
-            flex-direction: column;
         }
 
-        .header {
+        .app-layout {
+            display: flex;
+            min-height: 100dvh;
+            background-color: #f3f4f6;
+        }
+
+        .sidebar {
+            width: 280px;
+            border-right: 1px solid #e5e7eb;
+            background-color: #f9fafb;
+            padding: 1.5rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar-header {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .brand-logo {
+            width: 28px;
+            height: 28px;
+        }
+
+        .brand-name {
+            font-size: 1.15rem;
+            font-weight: 600;
+            text-transform: lowercase;
+        }
+
+        .new-conversation-btn {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            border: 1px solid #d1d5db;
             background-color: #ffffff;
-            padding: 1.25rem 1.5rem;
+            color: #1f2937;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+
+        .new-conversation-btn svg {
+            flex-shrink: 0;
+        }
+
+        .new-conversation-btn:hover {
+            background-color: #1d4ed8;
+            border-color: #1d4ed8;
+            color: #ffffff;
+        }
+
+        .conversation-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .conversation-item {
+            border: none;
+            background: transparent;
+            text-align: left;
+            border-radius: 0.85rem;
+            padding: 0.85rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease, color 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .conversation-item:hover {
+            background-color: #e5e7eb;
+        }
+
+        .conversation-item.active {
+            background-color: #1d4ed8;
+            color: #ffffff;
+        }
+
+        .conversation-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .conversation-preview {
+            font-size: 0.85rem;
+            color: inherit;
+            opacity: 0.8;
+        }
+
+        .conversation-empty {
+            font-size: 0.9rem;
+            color: #6b7280;
+            text-align: center;
+            padding: 2rem 1rem;
+            border: 1px dashed #d1d5db;
+            border-radius: 0.75rem;
+        }
+
+        .sidebar-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background-color: rgba(17, 24, 39, 0.4);
+            z-index: 5;
+        }
+
+        .main-pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 100dvh;
+            background-color: #ffffff;
+            position: relative;
+        }
+
+        .main-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+            background-color: #ffffff;
+            position: sticky;
+            top: 0;
+            z-index: 3;
         }
 
         .header-left {
@@ -36,42 +176,40 @@
         }
 
         .header-logo {
-            height: 32px;
+            height: 28px;
             width: auto;
         }
 
-        .header h1 {
-            font-size: 1.25rem;
+        .header-left h1 {
+            font-size: 1.1rem;
             font-weight: 600;
             margin: 0;
             color: #111827;
+            text-transform: lowercase;
         }
 
-        .new-conversation-btn {
-            width: 32px;
-            height: 32px;
-            padding: 0;
-            border: 1px solid #e5e7eb;
-            border-radius: 0.5rem;
+        .sidebar-toggle {
+            border: 1px solid #d1d5db;
             background-color: #ffffff;
-            color: #6b7280;
+            border-radius: 0.65rem;
+            padding: 0.35rem;
+            display: none;
+            flex-direction: column;
+            gap: 0.25rem;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
         }
 
-        .new-conversation-btn:hover {
-            background-color: #f3f4f6;
-            border-color: #d1d5db;
-            color: #374151;
+        .sidebar-toggle span {
+            width: 20px;
+            height: 2px;
+            background-color: #1f2937;
+            display: block;
+            border-radius: 999px;
         }
 
         .chat-container {
             flex: 1;
             overflow-y: auto;
-            background-color: #ffffff;
         }
 
         .chat-wrapper {
@@ -132,64 +270,57 @@
             background-color: #e5e7eb;
         }
 
+        .message.console {
+            justify-content: center;
+        }
+
         .message.console .message-content {
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'Courier New', monospace;
-            font-size: 0.875rem;
-            background-color: #fafafa;
+            background-color: #1f2937;
+            color: #f3f4f6;
+            border-radius: 0.75rem;
             padding: 0.75rem 1rem;
-            color: #374151;
-            max-width: 80%;
+            font-size: 0.9rem;
         }
 
         .input-container {
+            border-top: 1px solid #e5e7eb;
             background-color: #ffffff;
-            padding: 1rem;
-            padding-bottom: calc(1rem + env(safe-area-inset-bottom))
+            padding: 1rem 1.5rem 1.5rem;
         }
 
         .input-wrapper {
             max-width: 48rem;
             margin: 0 auto;
+            border-radius: 1rem;
+            border: 1px solid #e5e7eb;
+            background-color: #ffffff;
             display: flex;
-            gap: 0.75rem;
             align-items: flex-end;
+            gap: 0.75rem;
+            padding: 0.75rem;
         }
 
         .chat-input {
             flex: 1;
-            padding: 0.8rem 1rem;
-            border: 1px solid #d1d5db;
-            border-radius: 0.75rem;
-            background-color: #ffffff;
-            color: #111827;
+            border: none;
+            resize: none;
             font-size: 1rem;
             line-height: 1.5;
-            resize: none;
-            outline: none;
-            min-height: 54px;
+            min-height: 1.5rem;
             max-height: 200px;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .chat-input::placeholder {
-            color: #9ca3af;
-        }
-
-        .chat-input:focus {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            outline: none;
+            padding: 0;
+            background-color: transparent;
+            color: inherit;
         }
 
         .send-button {
-            flex-shrink: 0;
-            padding: 0;
-            width: 54px;
-            height: 54px;
-            border: 1px solid #111827;
-            border-radius: 0.75rem;
-            background-color: #111827;
-            color: #ffffff;
-            display: flex;
+            border: 1px solid #2563eb;
+            background-color: #2563eb;
+            color: white;
+            border-radius: 999px;
+            padding: 0.65rem 0.9rem;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
@@ -197,8 +328,8 @@
         }
 
         .send-button:hover:not(:disabled) {
-            background-color: #2563eb;
-            border-color: #2563eb;
+            background-color: #1d4ed8;
+            border-color: #1d4ed8;
         }
 
         .send-button:disabled {
@@ -232,56 +363,137 @@
             border-radius: 0.75rem;
             margin-top: 0.5rem;
         }
+
+        @media (max-width: 900px) {
+            .sidebar {
+                position: fixed;
+                inset: 0 auto 0 0;
+                z-index: 10;
+                height: 100%;
+                transform: translateX(-100%);
+                box-shadow: 0 0 30px rgba(15, 23, 42, 0.15);
+            }
+
+            body.sidebar-open .sidebar {
+                transform: translateX(0);
+            }
+
+            body.sidebar-open .sidebar-backdrop {
+                display: block;
+            }
+
+            .sidebar-toggle {
+                display: inline-flex;
+            }
+
+            .chat-wrapper {
+                padding: 1.5rem;
+            }
+
+            .input-container {
+                padding: 1rem;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <div class="header-left">
-            <button class="new-conversation-btn" onclick="newConversation()" title="New Conversation (Ctrl+Shift+N)">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 5v14"></path>
-                    <path d="M5 12h14"></path>
-                </svg>
-            </button>
-            <h1>nanochat</h1>
-        </div>
-    </div>
+    <div class="app-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="brand">
+                    <img class="brand-logo" src="/logo.svg" alt="NanoChat logo">
+                    <span class="brand-name">nanochat</span>
+                </div>
+                <button
+                    class="new-conversation-btn"
+                    onclick="newConversation()"
+                    title="New Conversation (Ctrl+Shift+N)"
+                    type="button"
+                >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 5v14"></path>
+                        <path d="M5 12h14"></path>
+                    </svg>
+                    New Chat
+                </button>
+            </div>
+            <div class="conversation-list" id="conversationList">
+                <div class="conversation-empty">Start chatting to see your conversation history.</div>
+            </div>
+        </aside>
 
-    <div class="chat-container" id="chatContainer">
-        <div class="chat-wrapper" id="chatWrapper">
-            <!-- Messages will be added here -->
-        </div>
-    </div>
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
-    <div class="input-container">
-        <div class="input-wrapper">
-            <textarea
-                id="chatInput"
-                class="chat-input"
-                placeholder="Ask anything"
-                rows="1"
-                onkeydown="handleKeyDown(event)"
-            ></textarea>
-            <button id="sendButton" class="send-button" onclick="sendMessage()" disabled>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 2L11 13"></path>
-                    <path d="M22 2l-7 20-4-9-9-4 20-7z"></path>
-                </svg>
-            </button>
+        <div class="main-pane">
+            <header class="main-header">
+                <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle conversation list">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <div class="header-left">
+                    <img class="header-logo" src="/logo.svg" alt="NanoChat logo">
+                    <h1>nanochat</h1>
+                </div>
+            </header>
+
+            <div class="chat-container" id="chatContainer">
+                <div class="chat-wrapper" id="chatWrapper">
+                    <!-- Messages render here -->
+                </div>
+            </div>
+
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <textarea
+                        id="chatInput"
+                        class="chat-input"
+                        placeholder="Ask anything"
+                        rows="1"
+                        onkeydown="handleKeyDown(event)"
+                    ></textarea>
+                    <button id="sendButton" class="send-button" onclick="sendMessage()" disabled>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 2L11 13"></path>
+                            <path d="M22 2l-7 20-4-9-9-4 20-7z"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         const API_URL = '';
+        const MOBILE_BREAKPOINT = 900;
         const chatContainer = document.getElementById('chatContainer');
         const chatWrapper = document.getElementById('chatWrapper');
         const chatInput = document.getElementById('chatInput');
         const sendButton = document.getElementById('sendButton');
+        const conversationList = document.getElementById('conversationList');
+        const sidebarBackdrop = document.getElementById('sidebarBackdrop');
 
         let messages = [];
         let isGenerating = false;
         let currentTemperature = 0.8;
         let currentTopK = 50;
+
+        sidebarBackdrop.addEventListener('click', () => toggleSidebar(false));
+        window.addEventListener('resize', () => {
+            if (window.innerWidth >= MOBILE_BREAKPOINT) {
+                document.body.classList.remove('sidebar-open');
+            }
+        });
+
+        function toggleSidebar(forceState) {
+            const isOpen = document.body.classList.contains('sidebar-open');
+            const shouldOpen = typeof forceState === 'boolean' ? forceState : !isOpen;
+            if (shouldOpen) {
+                document.body.classList.add('sidebar-open');
+            } else {
+                document.body.classList.remove('sidebar-open');
+            }
+        }
 
         chatInput.addEventListener('input', function() {
             this.style.height = 'auto';
@@ -297,7 +509,6 @@
         }
 
         document.addEventListener('keydown', function(event) {
-            // Ctrl+Shift+N for new conversation
             if (event.ctrlKey && event.shiftKey && event.key === 'N') {
                 event.preventDefault();
                 if (!isGenerating) {
@@ -314,6 +525,7 @@
             sendButton.disabled = false;
             isGenerating = false;
             chatInput.focus();
+            toggleSidebar(false);
         }
 
         function addMessage(role, content, messageIndex = null) {
@@ -324,7 +536,6 @@
             contentDiv.className = 'message-content';
             contentDiv.textContent = content;
 
-            // Add click handler for user messages to enable editing
             if (role === 'user' && messageIndex !== null) {
                 contentDiv.setAttribute('data-message-index', messageIndex);
                 contentDiv.setAttribute('title', 'Click to edit and restart from here');
@@ -335,7 +546,6 @@
                 });
             }
 
-            // Add click handler for assistant messages to enable regeneration
             if (role === 'assistant' && messageIndex !== null) {
                 contentDiv.setAttribute('data-message-index', messageIndex);
                 contentDiv.setAttribute('title', 'Click to regenerate this response');
@@ -354,27 +564,22 @@
         }
 
         function editMessage(messageIndex) {
-            // Find the message in the messages array
             if (messageIndex < 0 || messageIndex >= messages.length) return;
 
             const messageToEdit = messages[messageIndex];
             if (messageToEdit.role !== 'user') return;
 
-            // Copy message content to input
             chatInput.value = messageToEdit.content;
             chatInput.style.height = 'auto';
             chatInput.style.height = Math.min(chatInput.scrollHeight, 200) + 'px';
 
-            // Remove this message and all subsequent messages from the array
             messages = messages.slice(0, messageIndex);
 
-            // Remove message elements from DOM starting from messageIndex
             const allMessages = chatWrapper.querySelectorAll('.message');
             for (let i = messageIndex; i < allMessages.length; i++) {
                 allMessages[i].remove();
             }
 
-            // Enable send button and focus input
             sendButton.disabled = false;
             chatInput.focus();
         }
@@ -434,7 +639,6 @@
                 const assistantMessageIndex = messages.length;
                 messages.push({ role: 'assistant', content: fullResponse });
 
-                // Add click handler to regenerate this assistant message
                 assistantContent.setAttribute('data-message-index', assistantMessageIndex);
                 assistantContent.setAttribute('title', 'Click to regenerate this response');
                 assistantContent.addEventListener('click', function() {
@@ -453,22 +657,18 @@
         }
 
         async function regenerateMessage(messageIndex) {
-            // Find the message in the messages array
             if (messageIndex < 0 || messageIndex >= messages.length) return;
 
             const messageToRegenerate = messages[messageIndex];
             if (messageToRegenerate.role !== 'assistant') return;
 
-            // Remove this message and all subsequent messages from the array
             messages = messages.slice(0, messageIndex);
 
-            // Remove message elements from DOM starting from messageIndex
             const allMessages = chatWrapper.querySelectorAll('.message');
             for (let i = messageIndex; i < allMessages.length; i++) {
                 allMessages[i].remove();
             }
 
-            // Regenerate the assistant response
             await generateAssistantResponse();
         }
 
@@ -525,7 +725,6 @@
             const message = chatInput.value.trim();
             if (!message || isGenerating) return;
 
-            // Handle slash commands
             if (message.startsWith('/')) {
                 chatInput.value = '';
                 chatInput.style.height = 'auto';
@@ -544,8 +743,6 @@
         }
 
         sendButton.disabled = false;
-
-        // Autofocus the chat input on page load
         chatInput.focus();
 
         fetch(`${API_URL}/health`)
